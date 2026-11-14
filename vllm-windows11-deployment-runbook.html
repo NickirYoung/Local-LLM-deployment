@@ -1,0 +1,885 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="A complete, shareable Windows 11 / WSL2 / vLLM deployment runbook for a dual-EPYC server with eight RTX 4090 GPUs, including an agent handoff and acceptance checks.">
+<meta name="color-scheme" content="light">
+<title>Local LLM Deployment Runbook — Windows 11 · 8 × RTX 4090</title>
+<style>
+:root{--ink:#202b37;--muted:#5c6a78;--line:#dce3e7;--paper:#fff;--ground:#f4f6f7;--nav:#142331;--accent:#b74822;--blue:#1c5d7c;--soft:#edf5f8;--green:#26674c;--amber:#fff6e8;--code:#11212f}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:25px}body{margin:0;background:var(--ground);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.65;font-size:16px}
+a{color:var(--blue);text-underline-offset:3px}a:hover{color:var(--accent)}button{font:inherit;cursor:pointer}button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid #dc825c;outline-offset:4px}.skip{position:absolute;left:16px;top:-80px;padding:12px 20px;background:white;z-index:100}.skip:focus{top:12px}
+.layout{display:grid;grid-template-columns:250px minmax(0,1fr);max-width:1600px;margin:auto}
+.sidebar{background:var(--nav);color:#e2edf4;position:sticky;top:0;height:100vh;height:100dvh;overflow:auto;padding:30px 23px 24px}
+.brand{font-size:12px;letter-spacing:.15em;font-weight:750;color:#97aebb;text-transform:uppercase}.side-title{font-weight:750;font-size:23px;line-height:1.23;margin:16px 0 8px;color:white}.side-sub{font-size:13px;color:#aec0cc;margin:0 0 28px}
+nav a{display:block;font-size:13px;line-height:1.35;padding:10px 11px;color:#c3d2db;text-decoration:none;border-radius:6px;border-left:2px solid transparent;margin:2px 0}nav a:hover,nav a.active{background:#23394a;color:white;border-left-color:#eb966e}.nav-num{font-size:11px;color:#8fa4b3;margin-right:10px;font-variant-numeric:tabular-nums}.side-note{margin-top:27px;padding-top:18px;border-top:1px solid #324554;font-size:12px;color:#9eb4c3}
+main{min-width:0;padding:47px clamp(24px,5.5vw,85px) 70px;max-width:1250px}
+.kicker{color:var(--accent);text-transform:uppercase;letter-spacing:.14em;font-size:12px;font-weight:800;margin:0 0 18px}
+h1{font-size:clamp(34px,4.2vw,58px);line-height:1.06;letter-spacing:-.045em;max-width:850px;margin:0 0 23px;font-weight:780}h1 span{color:var(--muted)}
+.lead{font-size:19px;line-height:1.6;color:#495967;max-width:820px;margin:0 0 25px}
+.meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:11px;letter-spacing:.025em}.pill{padding:5px 9px;border:1px solid #cbd6dd;border-radius:4px;background:white;color:#526474}.pill.state{background:#fff2e5;color:#98511b;border-color:#efcfaa}
+.actions{display:flex;flex-wrap:wrap;gap:10px;margin:25px 0 32px}.action{border:1px solid #b9c9d2;background:white;border-radius:6px;padding:10px 15px;font-size:13px;font-weight:700;color:var(--ink)}.action.primary{background:var(--nav);color:white;border-color:var(--nav)}.action:hover{box-shadow:0 2px 8px #13263818}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--line);border-radius:9px;background:white;overflow:hidden;margin:0 0 35px}.stat{padding:20px 18px;border-right:1px solid var(--line)}.stat:last-child{border:0}.stat .value{font-size:27px;font-weight:760;letter-spacing:-.04em;line-height:1.2}.stat .label{font-size:11px;line-height:1.5;color:var(--muted);margin-top:6px}
+section{border-top:1px solid #cfd9df;margin-top:42px;padding-top:29px;scroll-margin-top:24px}h2{font-size:28px;line-height:1.22;letter-spacing:-.025em;margin:0 0 20px}.section-no{display:block;font-size:11px;letter-spacing:.15em;font-weight:750;color:var(--accent);margin-bottom:8px;text-transform:uppercase}h3{font-size:19px;letter-spacing:-.015em;margin:27px 0 11px;line-height:1.4}h4{font-size:16px;margin:23px 0 8px}p{margin:0 0 16px}ul,ol{padding-left:23px;margin:13px 0 19px}li{margin:7px 0}li p{margin:7px 0 10px}
+.callout{background:var(--soft);border-left:4px solid var(--blue);padding:18px 21px;margin:20px 0;border-radius:0 6px 6px 0}.callout.warn{background:var(--amber);border-left-color:#bd7824}.callout p:last-child{margin-bottom:0}.callout strong.label{display:block;font-size:12px;letter-spacing:.07em;text-transform:uppercase;margin-bottom:7px;color:var(--blue)}.callout.warn strong.label{color:#975c18}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:20px 0}.card{border:1px solid var(--line);border-radius:8px;padding:20px;background:white}.card h3{margin:0 0 10px;font-size:17px}.card p:last-child{margin-bottom:0}
+.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;margin:17px 0 20px;background:white}
+table{border-collapse:collapse;width:100%;font-size:13px;line-height:1.55;min-width:570px}th{text-align:left;background:#eaf0f3;color:#425663;font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:12px 14px;border-bottom:1px solid #cbd8e0}td{padding:13px 14px;vertical-align:top;border-bottom:1px solid #e3e9ed}tr:last-child td{border-bottom:0}tbody tr:nth-child(even){background:#fafcfd}td:first-child{font-weight:650}td code{font-size:11px}
+code{font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;font-size:.85em;background:#e7edf1;padding:.15em .35em;border-radius:3px;overflow-wrap:anywhere}.codebox{margin:19px 0 24px;overflow:hidden;border-radius:8px;background:var(--code);color:#deebf4;border:1px solid #243b4e}.codehead{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px 14px;background:#203444;font-size:12px;line-height:1.4;font-weight:650}.copy{padding:4px 10px;background:#314b5e;border:1px solid #557185;color:#ecf5fb;font-size:11px;border-radius:4px;flex-shrink:0}.copy:hover{background:#49677b}.shell{font-size:9px;letter-spacing:.10em;color:#90b4cd;font-weight:750;padding:12px 17px 0}pre{font:12px/1.7 "SFMono-Regular",Consolas,"Liberation Mono",monospace;margin:0;padding:12px 17px 19px;overflow-x:auto;tab-size:2}pre code{font:inherit;background:none;padding:0;border-radius:0;overflow-wrap:normal;color:inherit}
+#code-agent{white-space:pre-wrap;font-size:12px;line-height:1.8}
+.caption{color:var(--muted);font-size:12px;line-height:1.6;margin-top:-7px}.sources-inline{font-size:12px;color:var(--muted)}
+.step{border-left:2px solid #c4d4de;margin:27px 0 35px;padding-left:21px}.step h3{margin-top:0}.step-mark{font-size:11px;text-transform:uppercase;letter-spacing:.07em;font-weight:800;color:var(--accent);margin-bottom:8px}.gate{background:#eef6f0;border:1px solid #c4dccc;padding:11px 14px;color:#305b43;font-size:13px;border-radius:6px;margin:15px 0}
+.checklist{list-style:none;padding:0}.checklist li{margin:0;border-bottom:1px solid var(--line);padding:12px 0}.checklist label{display:flex;gap:12px;align-items:flex-start;cursor:pointer}.checklist input{width:17px;height:17px;flex:0 0 17px;accent-color:var(--green);margin:5px 0 0}.checklist input:checked+span{color:#527560}.check-progress{font-size:12px;color:var(--muted);display:flex;justify-content:space-between;gap:15px;align-items:center;background:#e9eff2;border-radius:6px;padding:12px 15px}.reset{border:0;background:transparent;font-size:11px;text-decoration:underline;color:#566878;padding:0}.evidence-note{font-size:12px;color:var(--muted)}
+.sources{padding-left:24px}.sources li{padding:5px 0;font-size:13px}.sources a{font-weight:650}.sources span{display:block;color:var(--muted);font-size:12px;margin-top:3px}
+footer{margin-top:40px;padding-top:20px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);display:flex;justify-content:space-between;gap:20px}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);padding:10px 18px;border-radius:7px;background:#182d3c;color:white;font-size:13px;box-shadow:0 6px 25px #0003;z-index:50;max-width:90vw}
+@media(min-width:1600px){body{background:#e5ebef}.layout{box-shadow:0 0 45px #152a3d10;background:var(--ground)}}
+@media(max-width:1000px){.layout{grid-template-columns:205px minmax(0,1fr)}.sidebar{padding:25px 15px}.side-title{font-size:21px}main{padding:35px 28px 55px}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.stat:nth-child(2){border-right:0}.stat:nth-child(-n+2){border-bottom:1px solid var(--line)}}
+@media(max-width:720px){.layout{display:block}.sidebar{position:relative;height:auto;overflow:visible;padding:19px 21px}.side-title{font-size:21px;margin:8px 0}.side-sub{margin:0;font-size:12px}.sidebar nav,.side-note{display:none}.brand{font-size:10px}main{padding:28px 20px 45px}h1{font-size:37px}.lead{font-size:17px}.stats{margin-bottom:26px}.stat{padding:16px}.stat .value{font-size:25px}.two{grid-template-columns:1fr}.step{padding-left:14px}h2{font-size:25px}.codehead{font-size:11px}pre{font-size:11px;padding-left:13px}.shell{padding-left:13px}footer{display:block}.meta{font-size:10px}}
+@media print{@page{size:A4;margin:16mm 14mm}body{background:white;font-size:10pt;line-height:1.5}.layout{display:block;max-width:none;box-shadow:none}.sidebar,.actions,.copy,.toast,.reset,.skip{display:none!important}main{padding:0;max-width:none}h1{font-size:31pt;max-width:none}.lead{font-size:12pt}.kicker{font-size:8pt}.stats{grid-template-columns:repeat(4,minmax(0,1fr));margin-top:18px}.stat{padding:12px}.stat .value{font-size:18pt}.stat .label{font-size:7pt}section{margin-top:23px;padding-top:18px}h2{font-size:19pt;break-after:avoid}h3{font-size:13pt;break-after:avoid}h4{break-after:avoid}.callout,.card,.gate{break-inside:avoid}.two{display:block}.card{margin-bottom:10px}.table-wrap{overflow:visible;border-radius:0}table{min-width:0;font-size:8pt}th{font-size:7pt}td,th{padding:7px}tr{break-inside:avoid}thead{display:table-header-group}.codebox{background:#f3f5f7;color:#172c3c;border-color:#c7d2d9;border-radius:3px;overflow:visible}.codehead{background:#e7edf1;color:#172c3c;padding:7px 10px;font-size:8pt}.shell{color:#476273;font-size:6pt;padding-top:8px}pre{white-space:pre-wrap;overflow:visible;font-size:7.2pt;line-height:1.5;padding:8px 12px 12px;overflow-wrap:anywhere}pre code{white-space:inherit;overflow-wrap:inherit}#code-agent{font-size:7.6pt;line-height:1.6}.step{margin-top:20px;margin-bottom:24px}p,li{orphans:3;widows:3}.sources li{font-size:8pt}.sources a:after{content:" — " attr(href);font-weight:400;overflow-wrap:anywhere;font-size:7pt}.caption,.sources-inline,.evidence-note{font-size:8pt}.meta{font-size:7pt}footer{font-size:8pt}.check-progress{font-size:8pt}a{color:#234d65;text-decoration:none}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to runbook</a>
+<div class="layout">
+<aside class="sidebar" aria-label="Document navigation">
+  <div class="brand">Infrastructure / 01</div>
+  <div class="side-title">Local LLM<br>deployment</div>
+  <p class="side-sub">Windows 11 · WSL2 · vLLM<br>Dual EPYC / eight RTX 4090s</p>
+  <nav>
+    <a href="#start"><span class="nav-num">01</span>Start here</a>
+    <a href="#agent"><span class="nav-num">02</span>Agent handoff</a>
+    <a href="#hardware"><span class="nav-num">03</span>Hardware assessment</a>
+    <a href="#platform"><span class="nav-num">04</span>Windows &amp; platform</a>
+    <a href="#models"><span class="nav-num">05</span>Model &amp; GPU strategy</a>
+    <a href="#setup"><span class="nav-num">06</span>Install &amp; validate</a>
+    <a href="#pilot"><span class="nav-num">07</span>Business-model pilot</a>
+    <a href="#access"><span class="nav-num">08</span>Business access &amp; RAG</a>
+    <a href="#startup"><span class="nav-num">09</span>Startup &amp; recovery</a>
+    <a href="#acceptance"><span class="nav-num">10</span>Acceptance &amp; evidence</a>
+    <a href="#troubleshooting"><span class="nav-num">11</span>Troubleshooting</a>
+    <a href="#sources"><span class="nav-num">12</span>Primary sources</a>
+  </nav>
+  <div class="side-note">Prepared 14 November 2026<br>Self-contained HTML · v1.0<br><br>Works offline. External links and installation downloads require internet access.</div>
+</aside>
+
+<main id="main">
+<header>
+  <p class="kicker">Business infrastructure / Deployment runbook</p>
+  <h1>A local LLM,<br><span>ready for a real deployment.</span></h1>
+  <p class="lead">A complete evaluation and implementation guide for a Windows 11 server with two AMD EPYC 9684X CPUs, 1.5 TB of system RAM, and eight RTX 4090 GPUs. Includes a copyable brief for the agent doing the work.</p>
+  <div class="meta"><span class="pill">14 NOVEMBER 2026</span><span class="pill">WINDOWS 11 + UBUNTU / WSL2</span><span class="pill state">DEPLOYMENT &amp; PERFORMANCE UNVERIFIED</span></div>
+  <div class="actions"><button class="action primary" data-copy="code-agent" type="button">Copy agent handoff</button><button class="action" id="print-button" type="button">Print / Save PDF</button><a class="action" href="#setup" style="text-decoration:none">Jump to installation</a></div>
+  <div class="stats" aria-label="Reported hardware">
+    <div class="stat"><div class="value">192</div><div class="label">CPU cores<br>384 hardware threads</div></div>
+    <div class="stat"><div class="value">1,536 GB</div><div class="label">Reported system RAM<br>24 × 64 GB DIMMs</div></div>
+    <div class="stat"><div class="value">8 × 24 GB</div><div class="label">Separate GPU memories<br>192 GB nominal aggregate</div></div>
+    <div class="stat"><div class="value">4 stages</div><div class="label">Inventory → pilot → measure<br>→ business readiness</div></div>
+  </div>
+</header>
+
+<section id="start">
+  <h2><span class="section-no">01 / Read this first</span>Capable hardware. Validate the whole system.</h2>
+  <p><strong>This server has substantial local-inference capacity.</strong> Its practical limits will come from memory per GPU, communication between cards, cooling, software compatibility, and workload shape. The CPUs and system RAM are ample; adding them together with GPU memory does not create one fast shared memory pool.</p>
+  <div class="callout"><strong class="label">Recommended starting path</strong><p><strong>Windows 11 → WSL2 → Ubuntu 24.04 → isolated Python environment → vLLM.</strong> Begin with a one-GPU test, validate communication, then compare model layouts. For an unattended 24/7 service, native Linux remains the preferred operational target if the owner can choose the host OS.</p></div>
+  <div class="two">
+    <div class="card"><h3>Known from the owner</h3><p>Windows 11 is the intended operating system. The hardware specification above is reported, not independently inventoried.</p></div>
+    <div class="card"><h3>Still to discover</h3><p>Windows edition/build, motherboard/chassis, storage, driver, actual GPU topology, business tasks, document permissions, target concurrency, and recovery requirements.</p></div>
+  </div>
+  <p>Until those workload targets are agreed and tested, call the result a <strong>pilot</strong>. This document contains implementation examples and engineering estimates; no benchmark or hardware test has been run on the friend's server.</p>
+  <ol>
+    <li>Share this entire HTML file with the friend and their deployment agent.</li>
+    <li>Have the agent read it and use the handoff brief below to start the authorized work.</li>
+    <li>Keep all command execution on the intended server. The document itself only supports reading, copying, printing, navigation, and local checklist state.</li>
+    <li>Read the shell label above every command. PowerShell belongs on Windows; Bash and Python examples belong inside Ubuntu.</li>
+  </ol>
+  <p class="sources-inline">Platform basis: <a href="https://docs.vllm.ai/en/stable/getting_started/installation/gpu/index.html">vLLM GPU installation</a> and <a href="https://docs.nvidia.com/cuda/wsl-user-guide/">NVIDIA CUDA on WSL</a>.</p>
+</section>
+
+<section id="agent">
+  <h2><span class="section-no">02 / Delegate the implementation</span>The deployment-agent handoff</h2>
+  <p>Attach this file to the friend's agent and paste the following brief. The agent should use its actual permissions, inspect the server, and turn the examples into validated local configuration.</p>
+  <div class="codebox"><div class="codehead"><span>Agent handoff — copy this entire brief</span><button class="copy" type="button" data-copy="code-agent" aria-label="Copy Agent handoff — copy this entire brief">Copy</button></div><div class="shell">OWNER / DEPLOYMENT AGENT</div><pre id="code-agent"><code>Use this attached HTML runbook as the deployment specification for my local business LLM server. Read all sections, including troubleshooting and acceptance, before making changes.
+
+Objective
+Get a reproducible vLLM pilot running on my existing Windows 11 server, validate all available GPUs, compare sensible model layouts, and leave working startup, recovery, security boundaries, and deployment evidence. Continue through the authorized setup and testing; report precise external blockers instead of stopping at a plan.
+
+Reported hardware (verify, do not assume detected)
+
+- 2 x AMD EPYC 9684X, 96 cores / 192 threads each
+- 24 x 64 GB DDR5-4800 system RAM
+- 8 x NVIDIA GeForce RTX 4090, 24 GB each
+- Windows 11; exact edition/build, motherboard, GPU topology, storage, and business workload are unknown
+
+Execution approach
+
+1. Start with read-only inventory. Record Windows edition/build, BIOS, CPU/core/thread counts, usable RAM, storage, NVIDIA driver, WSL version/distributions, GPUs, occupied ports, and existing workloads. Do not expose secrets in logs.
+2. Verify the live upstream requirements for vLLM, Python, CUDA/driver compatibility, WSL, and the selected model. Use official sources linked in this document. Select a stable compatible release, record exact versions, and use its matching documentation. Do not silently adopt nightly builds or an unofficial Windows fork.
+3. Use Ubuntu 24.04 in WSL2 as the initial Windows route. Reuse a suitable existing distribution or create a dedicated one. Preserve Windows, existing files, and unrelated services. Back up and merge configuration changes; do not overwrite .wslconfig or wsl.conf wholesale. Check active WSL work before restarting it.
+4. Install the NVIDIA driver on Windows; do not install a Linux display driver inside WSL. Use a clean Python environment and Linux-native paths on adequately sized NVMe storage.
+5. Validate GPU computation individually, then multi-GPU communication progressively. Start with one GPU and Qwen3-8B, then test groups of 2, 4, and 8 where available. Separate hardware/driver failures from model-memory failures.
+6. Establish a pinned Qwen3.8-27B BF16 text-only baseline on four GPUs if the current stable release supports it. Compare PP4/TP1 with TP4/PP1. Trial two independent four-GPU instances if resources permit. Use a compatible, verified smaller model while resolving newer-model support rather than changing the host OS.
+7. Evaluate the documented INT4 candidate in a separate configuration, starting with one or two GPUs and conservative limits. Preserve the BF16 baseline. Compare business quality, latency, memory, and concurrency. Do not assume the largest model is best.
+8. Keep inference endpoints bound to loopback during the pilot. Prepare the business access layer with HTTPS, identity, per-user limits, endpoint allowlisting, and audit policy. Reuse existing approved infrastructure when possible. Keep a completed local pilot available while missing identity/domain/certificate choices are resolved. Do not expose raw vLLM publicly.
+9. Configure systemd and Windows startup under the actual WSL-owning Windows account. Test readiness after a cold reboot with no interactive login, session closure, worker failure, and restart. Coordinate disruptive reboots with the owner and active work.
+10. Test the actual business workload and document a concurrency/context/output envelope. Use synthetic benchmarks only as capacity probes. If the workload is still unknown, label the result a provisional pilot and list the missing acceptance targets.
+11. Record model repository plus commit, software versions, launch configuration, service definitions, environment/driver facts, benchmark JSON, thermal/error observations, backup and rollback instructions. Keep credentials in private local files, not the report.
+12. Verify whether this specific deployment fits the applicable model and GeForce software terms. Record any unresolved licensing question rather than making a legal determination.
+13. If multi-GPU WSL is persistently unreliable, capture a minimal reproduction and recommend a native-Linux validation path. Do not reinstall Windows, repartition disks, purchase infrastructure, change business data access, or migrate the host OS without the owner&#x27;s explicit authorization.
+
+Required outputs
+
+- Read-only inventory report and an implementation decision log.
+- Working authenticated local API with verified model/version pins.
+- Validated launcher(s), startup units/tasks, health checks, and recovery notes.
+- Comparison of applicable GPU layouts with measured latency, throughput, memory, and errors.
+- A business-readiness checklist with each item marked passed, failed, pending, or not applicable.
+- A deployment manifest with exact versions and model commits; no secrets.
+- A final account of what runs now, how to start/stop/update/roll back, where evidence is stored, and anything that still needs owner or integrator action.
+
+Use normal judgment for reversible work within the owner&#x27;s authorization. Ask concise questions only for information, access, or approvals that materially block the next action. Do useful independent work while awaiting answers. Never label untested commands, unmeasured throughput, or an unverified reboot path as validated.</code></pre></div>
+</section>
+
+<section id="hardware">
+  <h2><span class="section-no">03 / Evaluate the build</span>What the hardware means in practice</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Component</th><th>Reported specification</th><th>Assessment</th></tr></thead>
+    <tbody>
+      <tr><td>CPU</td><td>2 × EPYC 9684X, 2.55 GHz base<br>96 cores / 192 threads each</td><td>192 physical cores and 384 threads total. Ample for tokenization, document ingestion, databases, and supporting services. The extra CPU cache is not the main lever for GPU-resident inference.</td></tr>
+      <tr><td>System RAM</td><td>24 × 64 GB DDR5-4800<br>1,536 GB nominal total</td><td>Useful for document processing, file caches, databases, and multiple services. It does not replace VRAM at comparable speed.</td></tr>
+      <tr><td>GPU</td><td>8 × GeForce RTX 4090<br>24 GB each</td><td>Strong compute per card. Models larger than an individual card's available memory require deliberate partitioning or offloading.</td></tr>
+      <tr><td>GPU memory</td><td>192 GB nominal across eight cards</td><td>Eight distinct allocations. Reserve capacity for runtime buffers, the KV cache, and Windows/display use.</td></tr>
+      <tr><td>Storage</td><td>Unknown</td><td>Allow 2–4 TB of fast NVMe for models/caches as an initial planning figure, plus protected business-data storage and backups. Dataset volume may justify more.</td></tr>
+      <tr><td>Power / chassis</td><td>Unknown</td><td>Requires integrator validation for slot spacing, airflow, power connectors, PSU capacity, electrical service, and sustained cooling.</td></tr>
+    </tbody>
+  </table></div>
+  <p class="sources-inline">CPU facts: <a href="https://www.amd.com/en/products/processors/server/epyc/4th-generation-9004-and-8004-series/amd-epyc-9684x.html">AMD EPYC 9684X</a>. GPU facts: <a href="https://www.nvidia.com/en-us/geforce/graphics-cards/40-series/rtx-4090/">NVIDIA RTX 4090 specifications</a>.</p>
+
+  <h3>The important GPU limitation</h3>
+  <p><strong>The 4090 has no NVLink, and NVIDIA does not officially support direct CUDA peer-to-peer access between 4090 cards.</strong> Multi-GPU software can fall back to other paths, including host-staged transfers. Consequently, communication-heavy layouts can lose much of the benefit of extra GPUs. Linux does not remove the card's interconnect limitation. <a href="https://forums.developer.nvidia.com/t/standard-nvidia-cuda-tests-fail-with-dual-rtx-4090-linux-box/233202">NVIDIA engineering clarification</a>.</p>
+  <p>Several independent model instances can be a better fit for unrelated employee requests. Use measured demand to decide whether to replicate a smaller model or spread a larger model across more cards.</p>
+
+  <h3>Have the integrator verify these before acceptance</h3>
+  <ul>
+    <li><strong>DIMM placement:</strong> the CPU has 12 memory channels per socket. Ideally populate 12 approved ECC RDIMMs per CPU, following the motherboard's exact guide.</li>
+    <li><strong>PCIe wiring:</strong> confirm electrical lane widths, any PCIe-switch uplinks, and CPU attachment for each GPU. Use suitable high-bandwidth connections; mining-style x1 risers are a poor fit.</li>
+    <li><strong>Physical fit:</strong> eight large open-air GPUs need an appropriate chassis and airflow design. Fans, connectors, and sustained thermals need inspection under load.</li>
+    <li><strong>NUMA:</strong> prefer groups local to one socket when feasible. GPU indices are not a topology map. WSL's virtual topology may not expose enough physical information; obtain the board's slot map.</li>
+    <li><strong>Firmware:</strong> validate BIOS/chipset versions, AMD SVM/virtualization, Above 4G Decoding, and the vendor's eight-GPU settings. Do not indiscriminately disable IOMMU or security settings to chase performance.</li>
+    <li><strong>Display use:</strong> if available, use BMC/integrated display capability so a serving GPU has fewer display allocations.</li>
+    <li><strong>Network:</strong> ordinary text traffic is modest; bulk document ingestion and backups may justify 10 GbE. Choose from actual transfer requirements.</li>
+  </ul>
+
+  <h3>Power and thermal planning</h3>
+  <p>Reference-specification GPUs account for <strong>8 × 450 W = 3,600 W</strong>; the CPUs add <strong>2 × 400 W = 800 W</strong>. The 4,400 W sum excludes RAM, disks, fans, and conversion losses. A 5–6 kW operating allowance corresponds to roughly 17,000–20,500 BTU/hour of heat. These are arithmetic planning estimates, not a measured wall load.</p>
+  <p>Have the integrator size the circuit, UPS, power distribution, redundant-PSU behavior, and cooling with headroom. A redundant PSU design must retain adequate capacity after the intended failure. If parts are still being selected, consider whether some CPU/RAM spending would be more useful as GPU memory, enterprise support, and a validated chassis.</p>
+
+  <div class="callout warn"><strong class="label">Business deployment terms</strong><p>NVIDIA's published GeForce software license restricts data-center deployment. Have the owner confirm the fit of the intended location and service model with the applicable terms; this runbook makes no legal determination. Also retain the chosen model's license and notices. <a href="https://www.nvidia.com/en-us/drivers/geforce-license/">GeForce software license</a>.</p></div>
+</section>
+
+<section id="platform">
+  <h2><span class="section-no">04 / Choose the host route</span>Windows 11 needs an edition check</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Windows 11 edition</th><th>Published physical RAM ceiling</th><th>Implication</th></tr></thead>
+    <tbody>
+      <tr><td>Home</td><td>128 GB</td><td>Cannot make the reported RAM available to Windows.</td></tr>
+      <tr><td>Pro</td><td>2 TB</td><td>The RAM capacity is within the stated ceiling. Verify CPU/core visibility and OEM support separately.</td></tr>
+      <tr><td>Pro for Workstations</td><td>6 TB</td><td>A relevant option for this high-end system, subject to vendor support for the actual hardware.</td></tr>
+    </tbody>
+  </table></div>
+  <p>Memory ceilings do not establish motherboard compatibility, full CPU availability, or driver support. Inventory the detected system. Use a current, fully updated Windows 11 installation rather than old installation media. <a href="https://learn.microsoft.com/en-us/windows/win32/memory/memory-limits-for-windows-releases">Microsoft memory limits</a>.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Deployment route</th><th>Use in this plan</th><th>Trade-off</th></tr></thead>
+    <tbody>
+      <tr><td>Windows 11 + Ubuntu / WSL2</td><td>Initial pilot</td><td>Retains the Windows host and uses Linux vLLM. Test GPU enumeration, communication, memory behavior, networking, and unattended recovery.</td></tr>
+      <tr><td>Native Ubuntu Linux</td><td>Preferred operational target for 24/7 serving</td><td>Simplifies Linux tooling and hardware diagnostics. A host migration is a separate owner-authorized project.</td></tr>
+      <tr><td>Community native Windows fork</td><td>Not the baseline</td><td>Adds a compatibility and maintenance dependency.</td></tr>
+    </tbody>
+  </table></div>
+  <p>Upstream vLLM documents Linux as its runtime OS and points Windows users to WSL or community forks. NVIDIA supports CUDA and NCCL in WSL while documenting limits around pinned memory, monitoring, and some container GPU selection. Validate the exact combination rather than assuming native-Linux parity. <a href="https://docs.vllm.ai/en/stable/getting_started/installation/gpu/index.html">vLLM requirements</a>; <a href="https://docs.nvidia.com/cuda/wsl-user-guide/">NVIDIA WSL guide</a>.</p>
+  <p><strong>Docker is optional for this pilot.</strong> The direct WSL Python environment reduces moving parts. If containers are adopted later, use the proper WSL2 GPU backend and pinned image digest. If the OS later turns out to be Windows Server, revisit the driver/WSL support matrix; Docker Desktop is not supported on Windows Server. <a href="https://docs.docker.com/desktop/features/gpu/">Docker Windows GPU support</a>; <a href="https://docs.docker.com/desktop/troubleshoot-and-support/faqs/windowsfaqs/">Docker Windows FAQ</a>.</p>
+</section>
+
+<section id="models">
+  <h2><span class="section-no">05 / Plan for memory and demand</span>Choose a model, then choose its layout</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Dense model / precision</th><th>Approximate weight bytes</th><th>Initial GPU allocation</th></tr></thead>
+    <tbody>
+      <tr><td>8B / BF16</td><td>16 GB</td><td>1 card; convenient installation smoke test.</td></tr>
+      <tr><td>27B / BF16</td><td>54 GB</td><td>4 cards for a baseline with headroom.</td></tr>
+      <tr><td>32B / BF16</td><td>64 GB</td><td>4 cards, then test context/concurrency limits.</td></tr>
+      <tr><td>27B / INT4</td><td>13.5 GB theoretical packed minimum</td><td>1–2 cards. The real checkpoint and runtime are larger.</td></tr>
+      <tr><td>70B / INT4</td><td>35 GB theoretical packed minimum</td><td>2–4 cards; four is a conservative initial trial.</td></tr>
+      <tr><td>70B / BF16</td><td>140 GB</td><td>8 cards. Long contexts and high concurrency need careful capacity measurement.</td></tr>
+    </tbody>
+  </table></div>
+  <p class="caption">Weight figures are decimal-byte estimates from parameter count × precision. Runtime tools often show GiB. Real models include other tensors, unquantized layers, metadata, workspaces, and model-specific buffers.</p>
+  <div class="callout"><strong class="label">Memory budget</strong><p><strong>GPU memory = weights + KV cache + activations/temporary buffers + execution/communication overhead.</strong> Longer requests and more simultaneous requests consume additional capacity. System-RAM offload can help a model fit but adds transfers and may sharply reduce speed.</p></div>
+
+  <h3>Initial model candidates</h3>
+  <ul>
+    <li><strong>Installation check:</strong> <code>Qwen/Qwen3-8B</code>, a manageable model with documented vLLM support. <a href="https://huggingface.co/Qwen/Qwen3-8B">Model card</a>.</li>
+    <li><strong>General business evaluation:</strong> <code>Qwen/Qwen3.8-27B</code>, first in BF16 and text-only mode. The official card documents vLLM and Apache 2.0 licensing. <a href="https://huggingface.co/Qwen/Qwen3.8-27B">Official model card</a>.</li>
+    <li><strong>Memory/concurrency comparison:</strong> <code>RedHatAI/Qwen3.8-27B-INT4</code>, a documented W4A16 checkpoint. Check Ada-compatible kernels, measured quality, and memory use. <a href="https://huggingface.co/RedHatAI/Qwen3.8-27B-INT4">INT4 model card</a>.</li>
+  </ul>
+  <p>These are evaluation candidates, not a promise of best quality. Use examples from the company's language, documents, coding tasks, and required output formats. Quantized weights must come from a compatible checkpoint or a validated conversion; a launch flag does not make an arbitrary model a sound INT4 deployment. Check the selected kernel's hardware support rather than copying a Blackwell-specific recipe.</p>
+
+  <h3>Compare these allocations</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Layout</th><th>Reason to try it</th><th>What to measure</th></tr></thead>
+    <tbody>
+      <tr><td>2 × four-GPU BF16 replicas</td><td>A clear quality baseline with independent request handling.</td><td>PP4 versus TP4, latency, concurrency, host-transfer effects.</td></tr>
+      <tr><td>4 × two-GPU INT4 replicas</td><td>More independent capacity and VRAM margin per model.</td><td>Quality change, per-request latency, collective overhead.</td></tr>
+      <tr><td>Up to 8 × one-GPU INT4 replicas</td><td>Eliminates inter-GPU communication within a request.</td><td>Whether the actual model/runtime fits with useful context and buffers.</td></tr>
+      <tr><td>1 × larger eight-GPU model</td><td>Worthwhile if business quality materially improves.</td><td>Communication cost, prompt processing, tail latency, memory.</td></tr>
+    </tbody>
+  </table></div>
+  <p>Tensor parallelism divides operations within layers. Pipeline parallelism partitions layers. vLLM recommends considering pipeline parallelism on devices without NVLink to reduce communication overhead; model implementation support and workload determine the result. Use TP × PP equal to the GPUs assigned to the instance, with disjoint GPU groups between replicas. <a href="https://docs.vllm.ai/en/stable/serving/parallelism_scaling/">Parallelism guidance</a>; <a href="https://docs.vllm.ai/en/stable/models/supported_models/">model feature support</a>.</p>
+</section>
+
+<section id="setup">
+  <h2><span class="section-no">06 / Implement progressively</span>Install and validate the foundation</h2>
+  <div class="callout warn"><strong class="label">Execution notes</strong><p>Run one stage at a time. Read the command output before continuing. Reuse existing validated components, preserve configuration, and resolve disk space or hardware failures early. The examples assume the Linux user owns <code>~/llm</code>; substitute actual usernames in systemd units.</p></div>
+
+  <div class="step"><div class="step-mark">Step 1 · Windows host</div><h3>Inventory the machine before changing it</h3>
+    <div class="codebox"><div class="codehead"><span>Read-only Windows inventory</span><button class="copy" type="button" data-copy="code-inventory" aria-label="Copy Read-only Windows inventory">Copy</button></div><div class="shell">WINDOWS • POWERSHELL</div><pre id="code-inventory"><code>Get-ComputerInfo |
+  Select-Object WindowsProductName, WindowsVersion, OsBuildNumber
+
+Get-CimInstance Win32_Processor |
+  Select-Object Name, NumberOfCores, NumberOfLogicalProcessors
+
+Get-CimInstance Win32_ComputerSystem |
+  Select-Object Manufacturer, Model, TotalPhysicalMemory
+
+Get-Volume |
+  Select-Object DriveLetter, FileSystemLabel, Size, SizeRemaining
+
+nvidia-smi
+nvidia-smi -L
+wsl --version
+wsl -l -v
+
+Get-NetTCPConnection -State Listen |
+  Where-Object LocalPort -in 8000,8001 |
+  Select-Object LocalAddress, LocalPort, OwningProcess</code></pre></div>
+    <p>Expected inventory is two CPUs with 96 cores / 192 threads each, roughly the installed RAM capacity, and eight GPUs. A missing WSL installation is expected before setup. Unexpected CPU, RAM, or GPU counts need explanation. Record the BIOS, driver, chassis/board identity, actual free NVMe space, and existing workloads in the evidence report.</p>
+    <div class="gate"><strong>Gate:</strong> the hardware is visible, the intended OS edition can use it, and the integrator has addressed power/cooling/PCIe concerns.</div>
+  </div>
+
+  <div class="step"><div class="step-mark">Step 2 · Windows host</div><h3>Prepare Windows, the driver, and WSL2</h3>
+    <p>Update Windows and the vendor-supported firmware/chipset stack. Enable AMD SVM in firmware if required. Install an appropriate current NVIDIA <strong>Windows</strong> driver with RTX 4090 and WSL CUDA support.</p>
+    <p><strong>Do not install a Linux display driver in WSL.</strong> The Windows driver supplies the CUDA interface. Prebuilt inference packages usually do not require a separate full CUDA developer toolkit; build requirements are different if source compilation becomes necessary. <a href="https://docs.nvidia.com/cuda/wsl-user-guide/">NVIDIA instructions</a>.</p>
+    <div class="codebox"><div class="codehead"><span>Install a new Ubuntu distribution, if needed</span><button class="copy" type="button" data-copy="code-wsl-install" aria-label="Copy Install a new Ubuntu distribution, if needed">Copy</button></div><div class="shell">WINDOWS • ADMINISTRATOR POWERSHELL</div><pre id="code-wsl-install"><code>wsl --install -d Ubuntu-24.04
+
+# Restart Windows when required, then create the Ubuntu user.
+# Run these after installation:
+wsl --update
+wsl --set-default-version 2
+wsl -l -v</code></pre></div>
+    <p>Skip distribution creation if a suitable Ubuntu WSL2 environment already exists and can be reused safely. Otherwise finish Ubuntu's first-run account setup and confirm <code>wsl -l -v</code> reports version 2. <a href="https://learn.microsoft.com/en-us/windows/wsl/install">Microsoft install guide</a>.</p>
+    <div class="gate"><strong>Gate:</strong> Ubuntu opens successfully as a WSL2 distribution, and the Windows driver exposes all eight GPUs.</div>
+  </div>
+
+  <div class="step"><div class="step-mark">Step 3 · WSL resources</div><h3>Merge practical initial limits</h3>
+    <p>Create or merge the following into <code>%UserProfile%\.wslconfig</code>, under the Windows account that owns the distribution. Preserve any existing options.</p>
+    <div class="codebox"><div class="codehead"><span>Suggested initial resource settings</span><button class="copy" type="button" data-copy="code-wsl-config" aria-label="Copy Suggested initial resource settings">Copy</button></div><div class="shell">WINDOWS FILE • %UserProfile%\.wslconfig</div><pre id="code-wsl-config"><code>[wsl2]
+memory=512GB
+processors=32
+swap=16GB
+localhostForwarding=true</code></pre></div>
+    <p>These are starting caps, not targets. Inference normally does not need every CPU thread. WSL's documented default RAM cap is half of Windows RAM; 512 GB is deliberately generous for this pilot. Increase or reduce limits from measured needs. Check where the WSL virtual disk lives and its capacity; native Linux model paths still occupy storage on the Windows host. <a href="https://learn.microsoft.com/en-us/windows/wsl/wsl-config">WSL resource configuration</a>.</p>
+    <div class="codebox"><div class="codehead"><span>Apply WSL configuration during a maintenance window</span><button class="copy" type="button" data-copy="code-wsl-restart" aria-label="Copy Apply WSL configuration during a maintenance window">Copy</button></div><div class="shell">WINDOWS • POWERSHELL</div><pre id="code-wsl-restart"><code># Stops all running WSL distributions. Check active work first.
+wsl --shutdown
+wsl -d Ubuntu-24.04</code></pre></div>
+  </div>
+
+  <div class="step"><div class="step-mark">Step 4 · Ubuntu environment</div><h3>Install a compatible stable vLLM stack</h3>
+    <p>Before installation, verify the current supported Python versions and driver requirements in upstream docs. Ubuntu 24.04's Python is a starting point; use a supported interpreter if requirements change. Use prebuilt wheels in a fresh environment and record the resolver's actual result. The initial install follows the current documented <code>uv</code> workflow. <a href="https://docs.vllm.ai/en/stable/getting_started/installation/gpu/index.html">Installation reference</a>.</p>
+    <div class="codebox"><div class="codehead"><span>Create the isolated Linux environment</span><button class="copy" type="button" data-copy="code-install" aria-label="Copy Create the isolated Linux environment">Copy</button></div><div class="shell">UBUNTU • BASH</div><pre id="code-install"><code>sudo apt update
+sudo apt install -y python3-venv python3-pip curl
+
+mkdir -p &quot;$HOME/llm/cache&quot; &quot;$HOME/llm/evidence&quot;
+cd &quot;$HOME/llm&quot;
+
+python3 -m venv venv
+source venv/bin/activate
+
+python -m pip install --upgrade pip uv
+uv pip install vllm --torch-backend=auto
+vllm download-kernels
+
+export HF_HOME=&quot;$HOME/llm/cache&quot;
+
+python --version
+python -c &#x27;import torch, vllm; print(&quot;torch&quot;, torch.__version__); print(&quot;vllm&quot;, vllm.__version__); print(&quot;CUDA runtime&quot;, torch.version.cuda)&#x27;
+vllm serve --help &gt; evidence/vllm-serve-help.txt
+python -m pip freeze &gt; evidence/requirements-initial.txt</code></pre></div>
+    <p>Keep the environment and model cache on Linux-native paths such as <code>~/llm</code> rather than <code>/mnt/c/...</code> for routine serving. Once validated, pin the versions and model commits. Do not independently upgrade PyTorch underneath a working vLLM installation.</p>
+    <div class="gate"><strong>Gate:</strong> imports succeed, the installed version supports the selected model/flags, and dependencies are consistent.</div>
+  </div>
+
+  <div class="step"><div class="step-mark">Step 5 · GPU validation</div><h3>Compute on every GPU independently</h3>
+    <div class="codebox"><div class="codehead"><span>Verify computation on each detected GPU</span><button class="copy" type="button" data-copy="code-gpu-check" aria-label="Copy Verify computation on each detected GPU">Copy</button></div><div class="shell">UBUNTU • BASH / PYTHON</div><pre id="code-gpu-check"><code># If nvidia-smi is not on PATH, use:
+# /usr/lib/wsl/lib/nvidia-smi -L
+nvidia-smi -L
+
+source &quot;$HOME/llm/venv/bin/activate&quot;
+
+python - &lt;&lt;&#x27;PY&#x27;
+import torch
+
+assert torch.cuda.is_available(), &quot;CUDA is unavailable&quot;
+count = torch.cuda.device_count()
+print(&quot;Detected GPU count:&quot;, count)
+assert count == 8, f&quot;Expected 8 GPUs; detected {count}&quot;
+
+for i in range(count):
+    a = torch.ones((1024, 1024), device=f&quot;cuda:{i}&quot;)
+    b = a @ a
+    torch.cuda.synchronize(i)
+    result = b[0, 0].item()
+    assert result == 1024.0, (i, result)
+    print(i, torch.cuda.get_device_name(i), &quot;PASS&quot;, result)
+PY</code></pre></div>
+    <p>The test checks enumeration and a small calculation on each card. It is not a burn-in, communication benchmark, or guarantee of reliability under sustained load. Record the actual output; do not change an unexpected count to force the test to pass.</p>
+  </div>
+
+  <div class="step"><div class="step-mark">Step 6 · One-GPU smoke test</div><h3>Start small and prove the API</h3>
+    <div class="codebox"><div class="codehead"><span>Create the pilot API key once</span><button class="copy" type="button" data-copy="code-key" aria-label="Copy Create the pilot API key once">Copy</button></div><div class="shell">UBUNTU • BASH</div><pre id="code-key"><code>cd &quot;$HOME/llm&quot;
+source venv/bin/activate
+umask 077
+
+# Refuse to overwrite an existing key file.
+if [ -e vllm.env ]; then
+  echo &quot;Keeping the existing vllm.env&quot;
+else
+  python - &lt;&lt;&#x27;PY&#x27;
+from pathlib import Path
+import secrets
+p = Path(&quot;vllm.env&quot;)
+with p.open(&quot;x&quot;) as f:
+    f.write(&quot;VLLM_API_KEY=&quot; + secrets.token_urlsafe(32) + &quot;\n&quot;)
+p.chmod(0o600)
+PY
+fi
+
+set -a
+source vllm.env
+set +a</code></pre></div>
+    <p>The key is stored in <code>~/llm/vllm.env</code> with private permissions. Treat it as a credential. The sample server reads <code>VLLM_API_KEY</code> from its environment; do not paste its value into shared logs or screenshots.</p>
+    <div class="codebox"><div class="codehead"><span>Run the one-GPU smoke test in the foreground</span><button class="copy" type="button" data-copy="code-smoke" aria-label="Copy Run the one-GPU smoke test in the foreground">Copy</button></div><div class="shell">UBUNTU • BASH</div><pre id="code-smoke"><code>source &quot;$HOME/llm/venv/bin/activate&quot;
+export HF_HOME=&quot;$HOME/llm/cache&quot;
+set -a
+source &quot;$HOME/llm/vllm.env&quot;
+set +a
+
+CUDA_VISIBLE_DEVICES=0 vllm serve Qwen/Qwen3-8B \
+  --served-model-name business-llm \
+  --host 127.0.0.1 \
+  --port 8000 \
+  --dtype bfloat16 \
+  --max-model-len 4096 \
+  --max-num-seqs 4 \
+  --gpu-memory-utilization 0.85</code></pre></div>
+    <p>First startup may download weights and compile kernels. Leave this terminal running. In a second Ubuntu terminal, send the request below.</p>
+    <div class="codebox"><div class="codehead"><span>Send a test request from a second Ubuntu terminal</span><button class="copy" type="button" data-copy="code-client" aria-label="Copy Send a test request from a second Ubuntu terminal">Copy</button></div><div class="shell">UBUNTU • BASH</div><pre id="code-client"><code>set -a
+source &quot;$HOME/llm/vllm.env&quot;
+set +a
+
+curl --fail-with-body \
+  http://127.0.0.1:8000/v1/chat/completions \
+  -H &quot;Authorization: Bearer $VLLM_API_KEY&quot; \
+  -H &quot;Content-Type: application/json&quot; \
+  -d &#x27;{
+    &quot;model&quot;: &quot;business-llm&quot;,
+    &quot;messages&quot;: [
+      {&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;Write a short professional meeting invitation.&quot;}
+    ],
+    &quot;max_tokens&quot;: 256,
+    &quot;chat_template_kwargs&quot;: {&quot;enable_thinking&quot;: false}
+  }&#x27;</code></pre></div>
+    <p>Thinking is disabled for this simple request so its output budget is spent on the answer. For later evaluations, compare like-for-like reasoning settings and use model-recommended sampling options. The API address is local even though it follows a familiar chat-completions format.</p>
+    <div class="gate"><strong>Gate:</strong> the API returns a usable response; the authenticated request succeeds and unauthenticated inference is rejected.</div>
+  </div>
+
+  <div class="step"><div class="step-mark">Step 7 · Communication validation</div><h3>Progress from two to four to eight GPUs</h3>
+    <div class="codebox"><div class="codehead"><span>Test communication using the small model</span><button class="copy" type="button" data-copy="code-multi" aria-label="Copy Test communication using the small model">Copy</button></div><div class="shell">UBUNTU • BASH</div><pre id="code-multi"><code># Stop the previous foreground server with Ctrl+C first.
+source &quot;$HOME/llm/venv/bin/activate&quot;
+export HF_HOME=&quot;$HOME/llm/cache&quot;
+set -a
+source &quot;$HOME/llm/vllm.env&quot;
+set +a
+
+CUDA_VISIBLE_DEVICES=0,1 vllm serve Qwen/Qwen3-8B \
+  --served-model-name business-llm \
+  --tensor-parallel-size 2 \
+  --host 127.0.0.1 \
+  --port 8000 \
+  --max-model-len 4096 \
+  --max-num-seqs 4 \
+  --gpu-memory-utilization 0.85
+
+# After stopping each test, repeat with:
+# CUDA_VISIBLE_DEVICES=0,1,2,3 and --tensor-parallel-size 4
+# CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 and --tensor-parallel-size 8
+# Send a request for every configuration and record errors / timing.</code></pre></div>
+    <p>Use the same sample request for each test. Log startup behavior, response time, and any collective-operation errors. If a group fails, reduce to a minimal failing configuration and use the <a href="#troubleshooting">diagnostic section</a>. A successful small-model run establishes a baseline, not performance scaling.</p>
+    <div class="gate"><strong>Gate:</strong> required GPU groups perform requests reliably. Resolve stack or communication errors before diagnosing a larger checkpoint's memory use.</div>
+  </div>
+</section>
+
+<section id="pilot">
+  <h2><span class="section-no">07 / Build the measured pilot</span>Pin the model and compare the layouts</h2>
+  <p>Verify that the installed stable vLLM release supports the current model architecture, pipeline parallelism, and listed flags. Save the help output and consult its matching documentation. A model repository's commit pin controls weights/configuration; a separate dependency pin controls the runtime.</p>
+
+  <h3>Download a fixed model revision</h3>
+  <div class="codebox"><div class="codehead"><span>Resolve and download a reproducible business-model revision</span><button class="copy" type="button" data-copy="code-pin" aria-label="Copy Resolve and download a reproducible business-model revision">Copy</button></div><div class="shell">UBUNTU • BASH / PYTHON</div><pre id="code-pin"><code>cd &quot;$HOME/llm&quot;
+source venv/bin/activate
+export HF_HOME=&quot;$HOME/llm/cache&quot;
+
+python - &lt;&lt;&#x27;PY&#x27;
+from pathlib import Path
+from huggingface_hub import HfApi, snapshot_download
+
+repo = &quot;Qwen/Qwen3.8-27B&quot;
+manifest = Path(&quot;business-model.env&quot;)
+if manifest.exists():
+    raise SystemExit(&quot;business-model.env exists: preserve the validated pin; review before changing it&quot;)
+
+revision = HfApi().model_info(repo_id=repo).sha
+path = snapshot_download(repo_id=repo, revision=revision)
+
+with manifest.open(&quot;x&quot;) as f:
+    f.write(f&quot;BUSINESS_MODEL={repo}\n&quot;)
+    f.write(f&quot;BUSINESS_MODEL_REVISION={revision}\n&quot;)
+
+print(&quot;Repository:&quot;, repo)
+print(&quot;Pinned commit:&quot;, revision)
+print(&quot;Local snapshot:&quot;, path)
+PY</code></pre></div>
+  <p>If the model or stable release is temporarily incompatible, retain the known-working small-model service while resolving the issue. Record the concrete error and the supported alternative. Do not silently introduce a nightly build into the validated baseline.</p>
+
+  <h3>Create the reusable launcher</h3>
+  <p>Save the following script at <code>~/llm/start-business.sh</code>. Its defaults are a four-GPU BF16, text-only, 8,192-token pilot. It reads the private key and pinned model manifest. Environment variables allow controlled layout comparisons without editing the script.</p>
+  <div class="codebox"><div class="codehead"><span>Save as ~/llm/start-business.sh</span><button class="copy" type="button" data-copy="code-launcher" aria-label="Copy Save as ~/llm/start-business.sh">Copy</button></div><div class="shell">UBUNTU FILE • BASH</div><pre id="code-launcher"><code>#!/usr/bin/env bash
+set -eo pipefail
+
+LLM_ROOT=&quot;$HOME/llm&quot;
+cd &quot;$LLM_ROOT&quot;
+source &quot;$LLM_ROOT/venv/bin/activate&quot;
+
+set -a
+source &quot;$LLM_ROOT/vllm.env&quot;
+source &quot;$LLM_ROOT/business-model.env&quot;
+set +a
+
+test -n &quot;$VLLM_API_KEY&quot; || { echo &quot;Missing VLLM_API_KEY&quot; &gt;&amp;2; exit 1; }
+test -n &quot;$BUSINESS_MODEL_REVISION&quot; || { echo &quot;Missing model revision&quot; &gt;&amp;2; exit 1; }
+
+if [ -z &quot;$LLM_GPU_IDS&quot; ]; then LLM_GPU_IDS=0,1,2,3; fi
+if [ -z &quot;$LLM_PORT&quot; ]; then LLM_PORT=8000; fi
+if [ -z &quot;$LLM_TP&quot; ]; then LLM_TP=1; fi
+if [ -z &quot;$LLM_PP&quot; ]; then LLM_PP=4; fi
+if [ -z &quot;$LLM_CONTEXT&quot; ]; then LLM_CONTEXT=8192; fi
+if [ -z &quot;$LLM_MAX_SEQS&quot; ]; then LLM_MAX_SEQS=8; fi
+
+export HF_HOME=&quot;$LLM_ROOT/cache&quot;
+export CUDA_VISIBLE_DEVICES=&quot;$LLM_GPU_IDS&quot;
+
+exec &quot;$LLM_ROOT/venv/bin/vllm&quot; serve &quot;$BUSINESS_MODEL&quot; \
+  --revision &quot;$BUSINESS_MODEL_REVISION&quot; \
+  --served-model-name business-llm \
+  --host 127.0.0.1 \
+  --port &quot;$LLM_PORT&quot; \
+  --dtype bfloat16 \
+  --tensor-parallel-size &quot;$LLM_TP&quot; \
+  --pipeline-parallel-size &quot;$LLM_PP&quot; \
+  --distributed-executor-backend mp \
+  --language-model-only \
+  --reasoning-parser qwen3 \
+  --max-model-len &quot;$LLM_CONTEXT&quot; \
+  --max-num-seqs &quot;$LLM_MAX_SEQS&quot; \
+  --gpu-memory-utilization 0.85</code></pre></div>
+  <p><code>--max-model-len</code> includes the request's prompt and generated tokens. <code>--max-num-seqs</code> is a scheduler limit, not a guarantee that all maximum-length requests fit or satisfy a latency target. The 0.85 GPU-memory fraction leaves initial headroom; actual allocations vary.</p>
+  <p class="sources-inline">Model-specific serving settings: <a href="https://recipes.vllm.ai/Qwen/Qwen3.8-27B">official vLLM recipe</a>. Flag meanings: <a href="https://docs.vllm.ai/en/stable/cli/serve/">serving CLI</a>.</p>
+
+  <h3>Compare pipeline and tensor parallelism</h3>
+  <div class="codebox"><div class="codehead"><span>Start the pilot, then compare layouts sequentially</span><button class="copy" type="button" data-copy="code-replicas" aria-label="Copy Start the pilot, then compare layouts sequentially">Copy</button></div><div class="shell">UBUNTU • BASH</div><pre id="code-replicas"><code># Run A: four-GPU pipeline parallel baseline.
+LLM_GPU_IDS=0,1,2,3 LLM_PORT=8000 LLM_TP=1 LLM_PP=4 \
+  bash &quot;$HOME/llm/start-business.sh&quot;
+
+# Stop A before run B, which uses the same GPUs and port.
+# Run B: four-GPU tensor parallel comparison.
+LLM_GPU_IDS=0,1,2,3 LLM_PORT=8000 LLM_TP=4 LLM_PP=1 \
+  bash &quot;$HOME/llm/start-business.sh&quot;
+
+# After choosing a layout, a second replica can run in another
+# terminal on a DISJOINT GPU group and a different port.
+LLM_GPU_IDS=4,5,6,7 LLM_PORT=8001 LLM_TP=1 LLM_PP=4 \
+  bash &quot;$HOME/llm/start-business.sh&quot;</code></pre></div>
+  <p><strong>Run competing layouts sequentially.</strong> A different port does not isolate GPU memory if two processes use the same cards. Replace the sample GPU groups with groups supported by the integrator's actual topology map; WSL may not expose that topology reliably.</p>
+  <p>Use the Step 6 chat request with the business-model pilot. Test realistic short and long requests. If quality is acceptable, compare the verified INT4 checkpoint in a separate manifest/launcher configuration, first on one or two cards. Preserve all BF16 pins and results.</p>
+
+  <h3>Measure capacity rather than guessing a user count</h3>
+  <div class="codebox"><div class="codehead"><span>Example synthetic capacity probe for the running business model</span><button class="copy" type="button" data-copy="code-bench" aria-label="Copy Example synthetic capacity probe for the running business model">Copy</button></div><div class="shell">UBUNTU • BASH</div><pre id="code-bench"><code>cd &quot;$HOME/llm&quot;
+source venv/bin/activate
+set -a
+source vllm.env
+source business-model.env
+set +a
+
+# Confirm flags against this installed version before running.
+vllm bench serve --help
+
+vllm bench serve \
+  --backend openai-chat \
+  --host 127.0.0.1 \
+  --port 8000 \
+  --endpoint /v1/chat/completions \
+  --model &quot;$BUSINESS_MODEL&quot; \
+  --tokenizer &quot;$BUSINESS_MODEL&quot; \
+  --served-model-name business-llm \
+  --dataset-name random \
+  --random-input-len 2048 \
+  --random-output-len 256 \
+  --num-prompts 64 \
+  --max-concurrency 4 \
+  --header &quot;Authorization=Bearer $VLLM_API_KEY&quot; \
+  --save-result \
+  --result-dir &quot;$HOME/llm/evidence&quot;
+
+# Repeat with planned concurrency and realistic prompt lengths.
+# Use unique result names / metadata when comparing layouts.
+# Check the matching CLI for how to fix reasoning mode consistently.</code></pre></div>
+  <p>Synthetic random prompts probe capacity, not business correctness. Use the same model revision/tokenizer and reasoning policy for comparisons; where the CLI needs a local tokenizer snapshot or additional request options, adapt to the installed version and record the change. Benchmark through the application/gateway as well as directly against the local backend. <a href="https://docs.vllm.ai/en/stable/cli/bench/serve/">Benchmark CLI reference</a>.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Dimension</th><th>Suggested trials</th><th>Record</th></tr></thead>
+    <tbody>
+      <tr><td>Concurrent requests</td><td>1, 4, 8, 16, 32</td><td>Successful completions, queue time, latency, throughput, errors.</td></tr>
+      <tr><td>Prompt length</td><td>2K and near the allowed maximum; add 16K only after raising and validating the context limit</td><td>Prompt tokens plus output budget must remain within the served context.</td></tr>
+      <tr><td>Response length</td><td>256 / 512 and realistic longer responses</td><td>Time to first token, per-request output speed, total output throughput, 95th-percentile latency.</td></tr>
+      <tr><td>Layout</td><td>PP4, TP4, multiple replicas, selected INT4 layouts</td><td>Quality, memory, CPU/transfer demand, power, thermals, and tail latency.</td></tr>
+    </tbody>
+  </table></div>
+  <p>Warm up each configuration, separate startup from steady-state performance, and use repeated comparable runs when differences are small. Avoid universal tokens-per-second or employee-count claims from component specifications.</p>
+</section>
+
+<section id="access">
+  <h2><span class="section-no">08 / Make it usable for the business</span>Add the application and identity layer</h2>
+  <p>vLLM provides inference. Employees also need a chat/application interface, identity, policy, and document retrieval where required. Keep the pilot's inference ports on loopback and choose the access layer to fit the company's existing environment.</p>
+  <div class="callout"><strong class="label">Recommended request path</strong><p><strong>Employee browser → HTTPS application / identity gateway → private vLLM replicas.</strong> A local document-retrieval service supplies authorized source passages when needed. The application handles conversation state, request limits, and user-visible citations.</p></div>
+  <ul>
+    <li><strong>HTTPS and identity:</strong> use company sign-in, role-based access, and managed certificates. Keep the backend key server-side rather than in a browser bundle.</li>
+    <li><strong>Gateway controls:</strong> allow only intended routes, enforce user/rate/context/output limits, set suitable streaming/timeouts, and health-check individual replicas.</li>
+    <li><strong>Load balancing:</strong> distribute requests between ports 8000 and 8001 once both are ready. Account for streaming connections and stateful application behavior.</li>
+    <li><strong>Logging:</strong> choose retention and redaction intentionally. Prompt/response logs can contain confidential information; avoid collecting them by default without a business purpose.</li>
+    <li><strong>Isolation:</strong> limit internal communication/administrative ports to trusted contexts. Keep raw vLLM off the public internet.</li>
+  </ul>
+  <p><strong>The vLLM API key is not a complete security perimeter.</strong> Upstream documents endpoints that are not protected by that key. The gateway should enforce authentication and route restrictions before traffic reaches the backend. <a href="https://docs.vllm.ai/en/stable/usage/security/">vLLM security reference</a>.</p>
+
+  <h3>Verify Windows-to-WSL access</h3>
+  <div class="codebox"><div class="codehead"><span>Verify Windows-to-WSL localhost forwarding</span><button class="copy" type="button" data-copy="code-wsl-health" aria-label="Copy Verify Windows-to-WSL localhost forwarding">Copy</button></div><div class="shell">WINDOWS • POWERSHELL</div><pre id="code-wsl-health"><code>Invoke-RestMethod http://localhost:8000/health
+# After starting replica 2:
+Invoke-RestMethod http://localhost:8001/health</code></pre></div>
+  <p>A Windows-hosted gateway can normally use WSL's localhost forwarding. A gateway inside WSL with direct LAN access needs appropriate networking and Windows/Hyper-V firewall configuration. Mirrored networking depends on the Windows build; validate it separately instead of opening arbitrary backend ports. <a href="https://learn.microsoft.com/en-us/windows/wsl/networking">Microsoft WSL networking</a>.</p>
+  <div class="codebox"><div class="codehead"><span>Check that unauthenticated inference is rejected</span><button class="copy" type="button" data-copy="code-auth-test" aria-label="Copy Check that unauthenticated inference is rejected">Copy</button></div><div class="shell">UBUNTU • BASH</div><pre id="code-auth-test"><code># Expected HTTP status: 401 with VLLM_API_KEY set.
+curl -s -o /dev/null -w &#x27;%{http_code}\n&#x27; \
+  http://127.0.0.1:8000/v1/models
+
+# The authenticated chat request from Step 6 should succeed.
+# /health being reachable is not evidence of endpoint authorization.</code></pre></div>
+
+  <h3>Start company-knowledge work with retrieval</h3>
+  <ol>
+    <li>Extract text from approved documents and keep stable source IDs, versions, and permissions.</li>
+    <li>Chunk/index the content using a local embedding model and retrieval store appropriate to its language and size.</li>
+    <li>Retrieve relevant passages under the employee's actual permissions before sending them to the model.</li>
+    <li>Generate answers with source references; support “insufficient evidence” responses and inspect grounding quality.</li>
+    <li>Update or remove indexed content when the source changes, expires, or becomes inaccessible.</li>
+  </ol>
+  <p>The CPU/RAM capacity is useful for this supporting work. Fine-tuning can later target specialized style or behavior after the baseline is evaluated. Full pretraining is a separate project and is outside this serving runbook.</p>
+  <p>If offline operation is required, pre-stage model snapshots, compatible packages, and required kernel artifacts, then test with egress disabled. Local hosting alone does not prove that the complete stack makes no outbound connections. Record telemetry choices and the verified offline behavior.</p>
+</section>
+
+<section id="startup">
+  <h2><span class="section-no">09 / Operate it unattended</span>Startup, health, and recovery</h2>
+  <p>Use systemd for Linux worker supervision and a Windows startup task for the WSL session. First prove the launcher manually. Example usernames and distribution names must match the server.</p>
+
+  <h3>Enable systemd when needed</h3>
+  <p>Check <code>ps -p 1 -o comm=</code>. If systemd is already active, preserve the current setup. Otherwise merge the following into <code>/etc/wsl.conf</code>, then restart WSL during maintenance.</p>
+  <div class="codebox"><div class="codehead"><span>Merge into /etc/wsl.conf if systemd is not already active</span><button class="copy" type="button" data-copy="code-systemd-config" aria-label="Copy Merge into /etc/wsl.conf if systemd is not already active">Copy</button></div><div class="shell">UBUNTU CONFIGURATION FILE</div><pre id="code-systemd-config"><code>[boot]
+systemd=true</code></pre></div>
+  <p>Microsoft documents current systemd requirements and configuration. <a href="https://learn.microsoft.com/en-us/windows/wsl/systemd">WSL systemd guide</a>.</p>
+
+  <h3>Install a reusable service template</h3>
+  <p>Create the unit as root after replacing <code>alice</code> in all three paths/fields with the Linux user who owns <code>~/llm</code>. The Windows account owning the WSL distribution and the Linux service user are different identities; configure each deliberately.</p>
+  <div class="codebox"><div class="codehead"><span>Template service: /etc/systemd/system/vllm@.service</span><button class="copy" type="button" data-copy="code-unit" aria-label="Copy Template service: /etc/systemd/system/vllm@.service">Copy</button></div><div class="shell">UBUNTU SYSTEMD UNIT • REPLACE alice</div><pre id="code-unit"><code>[Unit]
+Description=Business vLLM instance %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=alice
+WorkingDirectory=/home/alice/llm
+EnvironmentFile=/home/alice/llm/instance-%i.env
+ExecStart=/usr/bin/bash /home/alice/llm/start-business.sh
+Restart=on-failure
+RestartSec=15
+TimeoutStopSec=120
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target</code></pre></div>
+  <p>Create the instance files below under the Linux user's <code>~/llm</code>. Select the measured layout before enabling the second worker.</p>
+  <div class="codebox"><div class="codehead"><span>Instance 0: ~/llm/instance-0.env</span><button class="copy" type="button" data-copy="code-instance-0" aria-label="Copy Instance 0: ~/llm/instance-0.env">Copy</button></div><div class="shell">UBUNTU CONFIGURATION FILE</div><pre id="code-instance-0"><code>LLM_GPU_IDS=0,1,2,3
+LLM_PORT=8000
+LLM_TP=1
+LLM_PP=4
+LLM_CONTEXT=8192
+LLM_MAX_SEQS=8</code></pre></div>
+  <div class="codebox"><div class="codehead"><span>Instance 1: ~/llm/instance-1.env</span><button class="copy" type="button" data-copy="code-instance-1" aria-label="Copy Instance 1: ~/llm/instance-1.env">Copy</button></div><div class="shell">UBUNTU CONFIGURATION FILE</div><pre id="code-instance-1"><code>LLM_GPU_IDS=4,5,6,7
+LLM_PORT=8001
+LLM_TP=1
+LLM_PP=4
+LLM_CONTEXT=8192
+LLM_MAX_SEQS=8</code></pre></div>
+  <div class="codebox"><div class="codehead"><span>Enable services after stopping manual servers</span><button class="copy" type="button" data-copy="code-services" aria-label="Copy Enable services after stopping manual servers">Copy</button></div><div class="shell">UBUNTU • BASH</div><pre id="code-services"><code># Check that systemd is PID 1.
+ps -p 1 -o comm=
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now vllm@0
+sudo systemctl status vllm@0 --no-pager
+sudo journalctl -u vllm@0 -f
+
+# Enable the second instance only after its configuration is validated:
+# sudo systemctl enable --now vllm@1
+# sudo journalctl -u vllm@1 -f
+
+# Normal stop / start:
+# sudo systemctl stop vllm@0 vllm@1
+# sudo systemctl start vllm@0 vllm@1</code></pre></div>
+  <p>For a service error, inspect the journal and the exact paths/user/permissions before changing drivers or model settings. A running systemd unit does not mean the model has finished loading; poll readiness separately.</p>
+
+  <h3>Start and retain the WSL session from Windows</h3>
+  <div class="codebox"><div class="codehead"><span>Windows Task Scheduler action</span><button class="copy" type="button" data-copy="code-task" aria-label="Copy Windows Task Scheduler action">Copy</button></div><div class="shell">WINDOWS • TASK SCHEDULER</div><pre id="code-task"><code>Task name:        Local LLM - start WSL
+Trigger:          At startup (add a short delay if needed)
+Windows account:  The SAME account that owns Ubuntu-24.04
+Logon option:     Run whether user is logged on or not
+Program:          C:\Windows\System32\wsl.exe
+Arguments:        -d Ubuntu-24.04 --exec /usr/bin/sleep infinity
+Retry:            Restart on failure
+Time limit:       Disable &quot;Stop the task if it runs longer than ...&quot;
+Concurrency:      Do not start a new instance while already running
+
+Use a task name unique to this deployment.
+Verify account credentials and local policy on the actual machine.</code></pre></div>
+  <p>Configure the task for the Windows account that owns the distribution; using SYSTEM can select a different distribution registry context. Test the logged-out case, credentials, and local task policies rather than assuming a foreground terminal proves unattended operation.</p>
+  <p>Microsoft notes that systemd services alone do not keep the WSL instance alive. The long-running foreground process above is a session holder, not a health monitor for inference. Systemd restarts the model process; a separate readiness check should observe the API. <a href="https://devblogs.microsoft.com/commandline/systemd-support-is-now-available-in-wsl/">Microsoft systemd lifecycle explanation</a>.</p>
+
+  <h3>Run the recovery exercise</h3>
+  <ol>
+    <li>Close interactive Ubuntu sessions and confirm the API remains available through the intended application path.</li>
+    <li>Reboot Windows during an agreed maintenance window. Do not log in interactively; verify the startup task, service, readiness, and authenticated inference.</li>
+    <li>Exercise worker failure/restart on the dedicated pilot and verify automatic recovery plus actual model reload time.</li>
+    <li>Exercise distribution restart and verify startup-task retry/monitoring behavior; record any manual action still needed.</li>
+    <li>Check planned Windows-update/reboot behavior, task time limits, and post-update model readiness.</li>
+  </ol>
+  <p>Automatic restart is not high availability. Both replicas still share one host, power, storage, and OS. Define the acceptable outage and use an additional recovery/failover arrangement when the business requires it.</p>
+
+  <h3>Update and roll back deliberately</h3>
+  <p>Keep the validated environment, model commit, and service configuration. Trial updates in a separate environment/configuration, rerun the relevant checks, and switch only after comparison. Rollback should restore the previous environment path, model pin, and launcher/service configuration. Protect the private key separately and document its rotation process.</p>
+</section>
+
+<section id="acceptance">
+  <h2><span class="section-no">10 / Prove the result</span>Acceptance and the evidence bundle</h2>
+  <p>The checklist is a convenience for the reader. Ticks are stored only in this browser where permitted and do not travel with the shared HTML. The deployment agent should write a separate evidence report with explicit pass/fail/pending results.</p>
+  <div class="check-progress"><span id="progress-text">0 of 12 review items checked</span><button class="reset" type="button" id="reset-checklist">Reset local checks</button></div>
+  <ul class="checklist" id="readiness">
+    <li><label><input type="checkbox" data-check="inventory"><span><strong>Inventory:</strong> OS edition/build, CPUs/threads/RAM, driver, disks, motherboard, and all GPUs are recorded.</span></label></li>
+    <li><label><input type="checkbox" data-check="physical"><span><strong>Physical system:</strong> the integrator accepts power, cooling, card fit, memory population, and PCIe wiring.</span></label></li>
+    <li><label><input type="checkbox" data-check="foundation"><span><strong>Foundation:</strong> WSL2, individual GPU computation, and required multi-GPU groups pass observed tests.</span></label></li>
+    <li><label><input type="checkbox" data-check="pins"><span><strong>Reproducibility:</strong> stable runtime versions, model commits, launchers, and service/task definitions are captured.</span></label></li>
+    <li><label><input type="checkbox" data-check="quality"><span><strong>Business quality:</strong> 100–200 representative cases cover expected answers, extraction, citations, output structure, and unsupported questions.</span></label></li>
+    <li><label><input type="checkbox" data-check="capacity"><span><strong>Capacity:</strong> context/output/concurrency limits meet an agreed response-time target with acceptable errors.</span></label></li>
+    <li><label><input type="checkbox" data-check="stability"><span><strong>Sustained operation:</strong> representative traffic runs long enough to inspect thermals, throttling, driver errors, and memory behavior; target a 24-hour pilot soak where feasible.</span></label></li>
+    <li><label><input type="checkbox" data-check="auth"><span><strong>Access:</strong> authenticated application access works; unauthenticated access is rejected; only approved backend routes are reachable.</span></label></li>
+    <li><label><input type="checkbox" data-check="privacy"><span><strong>Data handling:</strong> document permissions, prompt logging, retention, telemetry, and egress/offline requirements are verified.</span></label></li>
+    <li><label><input type="checkbox" data-check="recovery"><span><strong>Recovery:</strong> cold reboot without interactive login, session closure, worker restart, and reload times are observed.</span></label></li>
+    <li><label><input type="checkbox" data-check="restore"><span><strong>Restore:</strong> configuration/data backup, credential handling, rollback, and the host-failure recovery target are documented.</span></label></li>
+    <li><label><input type="checkbox" data-check="terms"><span><strong>Terms and ownership:</strong> applicable model/driver terms, service owner, update cadence, and remaining exceptions are resolved or explicitly recorded.</span></label></li>
+  </ul>
+  <div class="codebox"><div class="codehead"><span>Capture the validated deployment environment</span><button class="copy" type="button" data-copy="code-manifest" aria-label="Copy Capture the validated deployment environment">Copy</button></div><div class="shell">UBUNTU • BASH</div><pre id="code-manifest"><code>cd &quot;$HOME/llm&quot;
+source venv/bin/activate
+mkdir -p evidence
+
+python -m pip freeze &gt; evidence/requirements-validated.txt
+python -m pip inspect &gt; evidence/pip-inspect-validated.json
+python -m pip check &gt; evidence/pip-check-validated.txt
+python -m torch.utils.collect_env &gt; evidence/torch-environment.txt
+uname -a &gt; evidence/linux-kernel.txt
+
+cp business-model.env evidence/business-model-validated.env
+cp start-business.sh evidence/start-business-validated.sh
+
+# Also save Windows edition/build, NVIDIA driver, WSL version,
+# model license, service/task definitions, benchmark results,
+# GPU grouping, and the actual health / recovery observations.
+# Do NOT copy vllm.env (the API secret) into a shareable report.
+# A pip freeze alone is not a complete offline reproduction bundle.</code></pre></div>
+  <p>A robust manifest also records the package source/index and wheel/image artifacts where necessary, model snapshot availability, Windows/WSL/driver versions, GPU allocation, and the operating policy. Driver and OS changes can affect behavior even when Python packages stay fixed.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Evidence area</th><th>Minimum contents</th></tr></thead>
+    <tbody>
+      <tr><td>Inventory</td><td>Observed hardware, OS, driver, WSL, disk space, physical/topology findings, and assumptions.</td></tr>
+      <tr><td>Runtime manifest</td><td>Python/vLLM/PyTorch/CUDA-runtime versions, package origins, exact model repository/commit, quantization, launch settings.</td></tr>
+      <tr><td>Measurements</td><td>Benchmark JSON, business evaluation cases/results, concurrency/context envelope, warmup policy, reasoning settings, errors, thermals.</td></tr>
+      <tr><td>Operations</td><td>Start/stop/health/restart commands, systemd units, Windows task, readiness timing, credential location (not values), logs and retention.</td></tr>
+      <tr><td>Recovery / decision log</td><td>Backups, restoration/rollback exercise, outage target, chosen layout and rationale, unresolved issues with next owner/action.</td></tr>
+    </tbody>
+  </table></div>
+  <p class="evidence-note">Keep sensitive prompts, proprietary benchmark cases, credentials, and employee/document identifiers out of a broadly shareable copy of the report.</p>
+</section>
+
+<section id="troubleshooting">
+  <h2><span class="section-no">11 / Resolve the right failure</span>Troubleshooting and stop conditions</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Symptom</th><th>Check first</th><th>Next action</th></tr></thead>
+    <tbody>
+      <tr><td>Windows shows too little RAM or CPU capacity</td><td>Edition, firmware, DIMM placement, OS build, OEM support, detected inventory.</td><td>Resolve the host/integrator issue before attributing it to vLLM.</td></tr>
+      <tr><td>A GPU is missing on Windows</td><td>Power, PCIe mapping, risers, firmware/address space, driver, physical integration.</td><td>Have the integrator diagnose it; Linux package changes will not fix missing host hardware.</td></tr>
+      <tr><td>Windows sees GPUs; WSL does not</td><td>WSL2 status, kernel/update, Windows GPU driver, conflicting Linux display-driver installs.</td><td>Repair the supported WSL driver path and repeat a single-GPU compute test.</td></tr>
+      <tr><td>Single GPU works; multi-GPU startup fails/hangs</td><td>NCCL logs, minimal 2-card reproduction, peer-access/collective failures, WSL support.</td><td>Trial targeted diagnostics below. Preserve logs before changing multiple settings.</td></tr>
+      <tr><td>Out of GPU memory</td><td>Other processes, actual weights, available per-card memory, context, concurrency, graph capture, multimodal buffers.</td><td>Reduce relevant limits, use text-only mode where appropriate, trial eager execution for capture issues, or use a validated quantized/smaller model or more GPUs.</td></tr>
+      <tr><td>Unknown model architecture or flag</td><td>Installed version and matching model/runtime documentation.</td><td>Use a supported stable combination and record it. Retain the working baseline while resolving newer-model support.</td></tr>
+      <tr><td>High aggregate throughput, poor employee latency</td><td>Queueing, prompt lengths, reasoning mode, output budget, replica load, CPU/transfer overhead.</td><td>Measure per-request tail latency and adjust batching/replica layout to the actual business target.</td></tr>
+      <tr><td>Windows reaches API; another PC cannot</td><td>Application/gateway binding, TLS/identity, WSL networking, Windows/Hyper-V firewall.</td><td>Expose the approved gateway path with intended policy, preserving private inference endpoints.</td></tr>
+      <tr><td>Service runs only after login</td><td>Task account, credentials, trigger, distribution ownership, task time limit, readiness timing.</td><td>Fix the unattended startup path and repeat a cold-reboot logged-out test.</td></tr>
+      <tr><td>Model loads but gives unusable or empty answers</td><td>Raw response, reasoning/content fields, chat template, token budget, sampling settings.</td><td>Test the official request pattern; separate reasoning budget from final-answer budget and verify application parsing.</td></tr>
+    </tbody>
+  </table></div>
+  <div class="codebox"><div class="codehead"><span>Targeted diagnostics; rerun a minimal failing case</span><button class="copy" type="button" data-copy="code-troubleshoot" aria-label="Copy Targeted diagnostics; rerun a minimal failing case">Copy</button></div><div class="shell">UBUNTU • BASH</div><pre id="code-troubleshoot"><code># First gather useful communication logs:
+export NCCL_DEBUG=INFO
+
+# If the logs identify unsupported peer access:
+export NCCL_P2P_DISABLE=1
+
+# For a failing tensor-parallel run, trial the vLLM flag:
+# --disable-custom-all-reduce
+
+# For a CUDA-graph / capture / compilation issue, trial:
+# --enforce-eager
+# Record the performance impact before making it permanent.
+
+# Clear diagnostic overrides when returning to the baseline:
+# unset NCCL_DEBUG NCCL_P2P_DISABLE</code></pre></div>
+  <p><strong>Persistent multi-GPU WSL failure is a decision point.</strong> Capture the exact minimal failing case, versions, and logs, then recommend native-Linux validation to the owner. A diagnostic boot or host migration needs its own authorized plan. Avoid accumulating undocumented flags or adopting modified GPU drivers as the business baseline.</p>
+  <p>Do not mark business readiness complete while the agreed quality, access, recovery, or capacity requirements remain unresolved. A useful working local pilot can still be delivered with clearly recorded limitations.</p>
+</section>
+
+<section id="sources">
+  <h2><span class="section-no">12 / Verify at execution time</span>Primary documentation</h2>
+  <p>Prepared on <strong>14 November 2026</strong>. Software and model support change quickly. The deployment agent should check the current source and then retain the documentation/version relationship used for the validated deployment. Links open online; the rest of this document is self-contained.</p>
+  <ol class="sources">
+    <li><a href="https://www.amd.com/en/products/processors/server/epyc/4th-generation-9004-and-8004-series/amd-epyc-9684x.html">AMD EPYC 9684X specifications</a><span>Core/thread counts, memory channels, supported memory rate, and TDP.</span></li>
+    <li><a href="https://www.nvidia.com/en-us/geforce/graphics-cards/40-series/rtx-4090/">NVIDIA GeForce RTX 4090 specifications</a><span>Memory, power, and NVLink availability.</span></li>
+    <li><a href="https://forums.developer.nvidia.com/t/standard-nvidia-cuda-tests-fail-with-dual-rtx-4090-linux-box/233202">NVIDIA engineering clarification on 4090 peer-to-peer support</a><span>Official engineering response in NVIDIA's developer forum.</span></li>
+    <li><a href="https://docs.vllm.ai/en/stable/getting_started/installation/gpu/index.html">vLLM GPU installation</a><span>Supported platforms/interpreters, clean environments, prebuilt wheels, and Windows/WSL guidance.</span></li>
+    <li><a href="https://docs.nvidia.com/cuda/wsl-user-guide/">NVIDIA CUDA on WSL user guide</a><span>Windows-driver setup, NCCL, and documented WSL limitations.</span></li>
+    <li><a href="https://learn.microsoft.com/en-us/windows/win32/memory/memory-limits-for-windows-releases">Microsoft Windows physical-memory limits</a><span>Windows 11 edition ceilings.</span></li>
+    <li><a href="https://learn.microsoft.com/en-us/windows/wsl/install">Microsoft WSL installation</a><span>WSL2 installation and basic setup.</span></li>
+    <li><a href="https://learn.microsoft.com/en-us/windows/wsl/wsl-config">Microsoft advanced WSL configuration</a><span>.wslconfig, wsl.conf, CPU/RAM/swap limits, and restarts.</span></li>
+    <li><a href="https://docs.vllm.ai/en/stable/serving/parallelism_scaling/">vLLM parallelism and scaling</a><span>Tensor/pipeline parallelism, single-node execution, and non-NVLink guidance.</span></li>
+    <li><a href="https://docs.vllm.ai/en/stable/models/supported_models/">vLLM supported models</a><span>Architecture and feature support, including pipeline parallelism.</span></li>
+    <li><a href="https://huggingface.co/Qwen/Qwen3-8B">Qwen3-8B official model card</a><span>Initial smoke-test candidate.</span></li>
+    <li><a href="https://huggingface.co/Qwen/Qwen3.8-27B">Qwen3.8-27B official model card</a><span>Business-evaluation candidate, serving behavior, and license.</span></li>
+    <li><a href="https://huggingface.co/RedHatAI/Qwen3.8-27B-INT4">Red Hat AI Qwen3.8-27B INT4 model card</a><span>Quantized comparison checkpoint and deployment notes.</span></li>
+    <li><a href="https://recipes.vllm.ai/Qwen/Qwen3.8-27B">Qwen3.8-27B vLLM recipe</a><span>Model-specific launch and reasoning settings; check hardware applicability.</span></li>
+    <li><a href="https://docs.vllm.ai/en/stable/cli/serve/">vLLM serving CLI</a><span>Launch flags and their semantics.</span></li>
+    <li><a href="https://docs.vllm.ai/en/stable/cli/bench/serve/">vLLM serving benchmark CLI</a><span>Workload generation, endpoint, auth header, and results controls.</span></li>
+    <li><a href="https://docs.vllm.ai/en/stable/usage/security/">vLLM security documentation</a><span>API-key coverage, reverse proxies, and exposed endpoints.</span></li>
+    <li><a href="https://learn.microsoft.com/en-us/windows/wsl/networking">Microsoft WSL networking</a><span>Localhost forwarding, LAN access, mirrored networking, and firewall considerations.</span></li>
+    <li><a href="https://learn.microsoft.com/en-us/windows/wsl/systemd">Microsoft systemd in WSL</a><span>Enablement and prerequisites.</span></li>
+    <li><a href="https://devblogs.microsoft.com/commandline/systemd-support-is-now-available-in-wsl/">Microsoft systemd lifecycle explanation</a><span>Why systemd services alone do not retain a WSL instance.</span></li>
+    <li><a href="https://www.nvidia.com/en-us/drivers/geforce-license/">NVIDIA GeForce software license</a><span>Applicable software terms, including the data-center deployment restriction.</span></li>
+    <li><a href="https://docs.docker.com/desktop/features/gpu/">Docker Desktop GPU support on Windows</a><span>Optional WSL2 container route.</span></li>
+    <li><a href="https://docs.docker.com/desktop/troubleshoot-and-support/faqs/windowsfaqs/">Docker Desktop Windows FAQ</a><span>Windows Server support limitation.</span></li>
+  </ol>
+</section>
+<footer><span>Local LLM Deployment Runbook · v1.0 · 14 November 2026</span><span>One HTML file. No external fonts, scripts, or styles.</span></footer>
+</main>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<script>
+(function(){
+  "use strict";
+  var toastTimer;
+  function notify(message){
+    var box=document.getElementById("toast");
+    box.textContent=message; box.hidden=false;
+    clearTimeout(toastTimer);
+    toastTimer=setTimeout(function(){box.hidden=true;},2800);
+  }
+  async function copyText(id){
+    var el=document.getElementById(id);
+    if(!el) return;
+    var value=el.textContent;
+    try {
+      if(navigator.clipboard && window.isSecureContext){
+        await navigator.clipboard.writeText(value);
+      } else {
+        var field=document.createElement("textarea");
+        field.value=value;
+        field.style.position="fixed"; field.style.top="-10000px";
+        document.body.appendChild(field); field.select();
+        var success=document.execCommand("copy");
+        field.remove();
+        if(!success) throw new Error("Clipboard unavailable");
+      }
+      notify(id==="code-agent" ? "Agent handoff copied" : "Command block copied");
+    } catch(e){
+      var range=document.createRange(); range.selectNodeContents(el);
+      var selection=window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+      notify("Text selected. Press Ctrl+C or Cmd+C to copy.");
+    }
+  }
+  document.querySelectorAll("[data-copy]").forEach(function(button){
+    button.addEventListener("click",function(){copyText(button.getAttribute("data-copy"));});
+  });
+  document.getElementById("print-button").addEventListener("click",function(){window.print();});
+  var storageKey="local-llm-runbook-v1-20261114";
+  var checks=Array.from(document.querySelectorAll("[data-check]"));
+  var saved={};
+  try {saved=JSON.parse(localStorage.getItem(storageKey)||"{}")||{};}catch(e){}
+  checks.forEach(function(input){input.checked=!!saved[input.getAttribute("data-check")];});
+  function update(save){
+    var state={}; var count=0;
+    checks.forEach(function(input){state[input.getAttribute("data-check")]=input.checked;if(input.checked)count++;});
+    document.getElementById("progress-text").textContent=count+" of "+checks.length+" review items checked";
+    if(save){try{localStorage.setItem(storageKey,JSON.stringify(state));}catch(e){}}
+  }
+  checks.forEach(function(input){input.addEventListener("change",function(){update(true);});});
+  document.getElementById("reset-checklist").addEventListener("click",function(){
+    checks.forEach(function(input){input.checked=false;});update(true);notify("Local checklist reset");
+  });
+  update(false);
+  var links=Array.from(document.querySelectorAll("nav a"));
+  if("IntersectionObserver" in window){
+    var observer=new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        if(entry.isIntersecting){
+          links.forEach(function(link){
+            var active=link.getAttribute("href")==="#"+entry.target.id;
+            link.classList.toggle("active",active);
+            if(active)link.setAttribute("aria-current","location");else link.removeAttribute("aria-current");
+          });
+        }
+      });
+    },{rootMargin:"-5% 0px -70% 0px",threshold:0});
+    document.querySelectorAll("main section[id]").forEach(function(section){observer.observe(section);});
+  }
+})();
+</script>
+</body>
+</html>
